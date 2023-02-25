@@ -40,29 +40,29 @@ Features:
 * Varsity: did varsity sports
 * single_parent_hh: Lives with single parent
 
-I am going to ignore region 2 in this video, since it receives treatment ad a different time than region 5. We'll come back to region 2 in DiD part 3.That means that our treatment group in this video is region 5, and the control is everything else except region 2. 
+I am going to ignore region 5 in this video, since it receives treatment ad a different time than region 2. We'll come back to region 5 in DiD part 3.That means that our treatment group in this video is region 2, and the control is everything else except region 5. 
 
 ```{r}
-stem5 = stem_data[stem_data$region != 2,]
+stem2 = stem_data[stem_data$region != 5,]
 ```
 
 ### Create plot to show the issue
-Let's look at average scores in region 5 vs other regions combined.
+Let's look at average scores in region 2 vs other regions combined.
 
-Before 2015, Region 5 seems to lag behind the rest. Then in 2015, with the STEM program, scores in Region 5 jump to a higher level. With a good DiD, you can *see* the treatment in a graph like this. 
+Before 2013, Region 2 seems to lag behind the rest. Then in 2013, with the STEM program, scores in Region 2 jump to a higher level. With a good DiD, you can *see* the treatment in a graph like this. Although it may not be *this* obvious.
 
 However, we still have to talk about assumptions and estimation. 
 
 ```{r, echo = FALSE}
-stem5$reg5 = ifelse(stem5$region == 5,'Region 5','Other Regions')
+stem2$reg2 = ifelse(stem2$region == 2,'Region 2','Other Regions')
 
-avg_scores <- aggregate(score ~ reg5 + year, data = stem5, FUN = mean)
+avg_scores <- aggregate(score ~ reg2 + year, data = stem2, FUN = mean)
 
-ggplot(avg_scores, aes(x = year, y = score, color = reg5)) +
+ggplot(avg_scores, aes(x = year, y = score, color = reg2)) +
   geom_point(size = 3) +
   labs(x = "Year", y = "Average Score", color = "Region") +
   theme_light()+
-  geom_vline(xintercept = 2014.5, linetype = "dashed") +
+  geom_vline(xintercept = 2012.5, linetype = "dashed") +
   scale_x_continuous(breaks = seq(2010,2019, by = 1))
 
 ```
@@ -70,26 +70,61 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg5)) +
 ### Assumption
 To successfully execute DiD and trust the results as a causal effect, you have to assume that the trends between treatment and control are parallel before and after the treatment. In this case, the trends do seem similar, before and after. 
 
+### Execution
+To perform the most basic version of a DiD, you use a regression with at least 3 variables. You must have:
+
+* a treatment group variable that determines whether a group is ever treated
+* a treatment time variable that says whether treatment is occurring anywhere (doesn't actually have to be time)
+* an interaction term that marks whether a sample is in the treatment group AND ALSO currently being treated.
+
+You can add additional covariates, but these 3 are teh required components.
+
+Treatment group:
+``` {r}
+stem2$r2<-ifelse(stem2$region==2,1,0)
+```
+
+Treatment time:
+``` {r}
+stem2$y2013plus<-ifelse(stem2$year>=2013,1,0)
+```
+
+Interaction, both group and time:
+``` {r}
+stem2$r2_2013<-stem2$r2*stem2$y2013plus
+```
+
+And the actual regression: 
+``` {r}
+dd_reg1 <- lm(score ~ r2_2013 + r2 + y2013plus, data = stem2)
+dd_reg1$coefficients
+```
+
+We interpret these coefficients separately, but only the coefficient on the interaction is the actual causal effect from the STEM treatment. 
+
+The intercept tells us that the baseline score in this data set (the control regions) is `r round(dd_reg1$coefficients[1],2)`.
+
+The time `r2` coefficient tells us that in the beginning, Region 2 had scores `r abs(round(dd_reg1$coefficients[3],))` points `r ifelse(dd_reg1$coefficients[3]<0,'below','above')` the baseline of the other regions.
+
+The coefficient on the time variable `y2013plus` says that across regions, `score` was `r round(dd_reg1$coefficients[4],2)` points higher after 2013 than before. 
+
+We have accounted for regions and time trends. Now we use the interaction to see if there is a difference in the regional differences before and after the time change. The coefficient on `r2_2013`, `r round(dd_reg1$coefficients[2],2)` tells us that students in Region 2 increased their scores by `r round(dd_reg1$coefficients[2],2)` points more than the other groups. The difference between groups changed by that much. This would be the causal effect of the STEM program. This is how many points the treatment group gains above and beyond the shared time trend. 
+
+It may be helpful to see it in a graph.
+
+
 ```{r, echo = FALSE}
-ggplot(avg_scores, aes(x = year, y = score, color = reg5)) +
-  geom_line() +
+
+ggplot(avg_scores, aes(x = year, y = score, color = reg2)) +
+  geom_point(size = 3) +
   labs(x = "Year", y = "Average Score", color = "Region") +
   theme_light()+
-  geom_vline(xintercept = 2014.5, linetype = "dashed") +
-  scale_x_continuous(breaks = seq(2010,2019, by = 1))
+  geom_vline(xintercept = 2012.5, linetype = "dashed") +
+  scale_x_continuous(breaks = seq(2010,2019, by = 1)) + 
+  # this is wrong. change time to time trend. 
+  geom_segment (aes (x=2010,xend=2012,y=dd_reg1$coefficients[1],yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[4]))
+
 ```
-###################################################################
-# This is how we set up diff-in-diff. Requires at least 3 variables.
-#     Dummy variable for treatment group
-stem5$r2<-ifelse(stem5$region==2,1,0)
-#     Dummy variable for if treatment is happening
-stem5$y2013plus<-ifelse(stem5$year>=2013,1,0)
-#     Interaction: the treatment group is being treated
-stem5$r2_2013<-stem5$r2*stem5$y2013plus
-###################################################################
-
-
-dd_reg1 <- lm(score ~ r2_2013 + r2 + y2013plus, data = stem5)
 
 
 #plot with regression lines added on for effect.
