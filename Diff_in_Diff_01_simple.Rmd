@@ -21,49 +21,47 @@ One of the most common methods is Difference in Differences, also called diff-in
 So let's get some [fake] data!
 
 ```{r}
-stem_data <- read.csv("https://raw.githubusercontent.com/MattBirch42/Causal-Inference-Stuff/main/Fake_DD_stemPolicy_scores.csv")
+stem_data <- read.csv("https://raw.githubusercontent.com/MattBirch42/Causal-Inference-Stuff/main/vanilla_did.csv")
 ```
+
+```{r, echo = FALSE, }
+#setting up variables to be used throughout. If I update the data generation, fix this first.
+stem2 <- stem_data
+tgroup <- 'regions 2 and 4'
+cutoff <- 2015
+min_year <- min(stem2$year)
+max_year <- max(stem2$year)
+```
+
 ### Explanation of Data
-This is fake data about an imagined scenario that I used for a class assignment. The STEM program gives students in the participating region extra training in math and science. Not all regions participate. We will compare the test scores of students in participating regions those who are not before and after the program is implemented. 
+This is fake data about an imagined scenario that I used for a class assignment. The STEM program gives students in the participating region extra training in math and science. Not all regions participate. We will compare the test scores of students in participating regions those who are not before and after the program is implemented. In this data, `r tgroup` implement the STEM program in `r cutoff` and later. 
 
-Features:
+Provided Features:
 
-* year = Year
-* male = 1 if male, 0 otherwise
-* Region: These represent some fictional geographic region
-* Race: These categorize different unspecified races.
-* Stem: stem denotes extra STEM prep in grades 10-12. Stem program starts in 2013 in region 2 and in 2015 in region 5. No other region has the program.
-* bday_m_cutoff: regions 1-4 have compulsory schooling laws (save this for RD later)
-* Education: parent’s years of formal schooling
-* Income: family income
-* Score: Assessment exam score (this is our dependent variable)
-* Varsity: did varsity sports
-* single_parent_hh: Lives with single parent
+* year = year
+* region: These represent some fictional geographic region, 7 regions in all
+* score: Assessment exam score (this is our dependent variable)
 
-I am going to ignore region 5 in this video, since it receives treatment ad a different time than region 2. We'll come back to region 5 in DiD part 3.That means that our treatment group in this video is region 2, and the control is everything else except region 5. 
-
-```{r}
-stem2 = stem_data[stem_data$region != 5,]
-```
 
 ### Create plot to show the issue
-Let's look at average scores in region 2 vs other regions combined.
+Let's look at average scores in `r tgroup` vs other regions combined.
 
-Before 2013, Region 2 seems to lag behind the rest. Then in 2013, with the STEM program, scores in Region 2 jump to a higher level. With a good DiD, you can *see* the treatment in a graph like this. Although it may not be *this* obvious.
+Before `r cutoff`, `r tgroup` seems to lag behind the rest. Then in `r cutoff`, with the STEM program, scores in `r tgroup` jump to a higher level. With a good DiD, you can *see* the treatment in a graph like this. Although it may not be *this* obvious.
 
 However, we still have to talk about assumptions and estimation. 
 
 ```{r, echo = FALSE}
-stem2$reg2 = ifelse(stem2$region == 2,'Region 2','Other Regions')
+stem2$reg24 = ifelse(stem2$region %in% c(2,4),'Region 2 or 4','Other Regions')
 
-avg_scores <- aggregate(score ~ reg2 + year, data = stem2, FUN = mean)
+avg_scores <- aggregate(score ~ reg24 + year, data = stem2, FUN = mean)
 
-ggplot(avg_scores, aes(x = year, y = score, color = reg2)) +
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
   geom_point(size = 3) +
   labs(x = "Year", y = "Average Score", color = "Region") +
-  theme_light()+
-  geom_vline(xintercept = 2012.5, linetype = "dashed") +
-  scale_x_continuous(breaks = seq(2010,2019, by = 1))
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light() +
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1))
 
 ```
 
@@ -81,53 +79,119 @@ You can add additional covariates, but these 3 are teh required components.
 
 Treatment group:
 ``` {r}
-stem2$r2<-ifelse(stem2$region==2,1,0)
+stem2$r24<-ifelse(stem2$region %in% c(2,4),1,0)
 ```
 
 Treatment time:
 ``` {r}
-stem2$y2013plus<-ifelse(stem2$year>=2013,1,0)
+stem2$y2015plus<-ifelse(stem2$year>=cutoff,1,0)
 ```
 
 Interaction, both group and time:
 ``` {r}
-stem2$r2_2013<-stem2$r2*stem2$y2013plus
+stem2$r24_2015<-stem2$r24*stem2$y2015plus
 ```
 
 And the actual regression: 
 ``` {r}
-dd_reg1 <- lm(score ~ r2_2013 + r2 + y2013plus, data = stem2)
+dd_reg1 <- lm(score ~ r24_2015 + r24 + y2015plus, data = stem2)
 dd_reg1$coefficients
 ```
 
-We interpret these coefficients separately, but only the coefficient on the interaction is the actual causal effect from the STEM treatment. 
-
-The intercept tells us that the baseline score in this data set (the control regions) is `r round(dd_reg1$coefficients[1],2)`.
-
-The time `r2` coefficient tells us that in the beginning, Region 2 had scores `r abs(round(dd_reg1$coefficients[3],))` points `r ifelse(dd_reg1$coefficients[3]<0,'below','above')` the baseline of the other regions.
-
-The coefficient on the time variable `y2013plus` says that across regions, `score` was `r round(dd_reg1$coefficients[4],2)` points higher after 2013 than before. 
-
-We have accounted for regions and time trends. Now we use the interaction to see if there is a difference in the regional differences before and after the time change. The coefficient on `r2_2013`, `r round(dd_reg1$coefficients[2],2)` tells us that students in Region 2 increased their scores by `r round(dd_reg1$coefficients[2],2)` points more than the other groups. The difference between groups changed by that much. This would be the causal effect of the STEM program. This is how many points the treatment group gains above and beyond the shared time trend. 
-
-It may be helpful to see it in a graph.
-
+That is the simplest version possible, but it is not the best model possible. We'll do a better one in a minute. The graph below shows what the regression predicts for treatment and control groups. Note that the gap between the treatment and control groups on the left is much wider, and the gap on the right is much narrower. There is a difference in the differences. The decrease in the gap is our treatment effect, and is the coefficient on the interaction term `r24_2015`, which is about a `r round(dd_reg1$coefficients[2],0)` point gain from the stem program.
 
 ```{r, echo = FALSE}
 
-ggplot(avg_scores, aes(x = year, y = score, color = reg2)) +
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
   geom_point(size = 3) +
   labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
   theme_light()+
-  geom_vline(xintercept = 2012.5, linetype = "dashed") +
-  scale_x_continuous(breaks = seq(2010,2019, by = 1)) + 
-  # this is wrong. change time to time trend. 
-  geom_segment (aes (x=2010,xend=2012,y=dd_reg1$coefficients[1],yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[4]))
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1)) + 
+  # control
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg1$coefficients[1],
+                     yend=dd_reg1$coefficients[1]), 
+                color = "blue") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[4],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[4]), 
+                color = "blue") +
+  # treatment
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[3],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[3]), 
+                color = "red") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[2]+dd_reg1$coefficients[3]+dd_reg1$coefficients[4],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[2]+dd_reg1$coefficients[3]+dd_reg1$coefficients[4]), 
+                color = "red")
 
 ```
 
 
-#plot with regression lines added on for effect.
+However, the dummy variable time trend leads to underwhelming results! We can make the model more flexible. Looking at our plot, it is clear that there is a gradual time trend throughout the years, rather than a discrete jump. Consequently, we may want to adjust our model to account for that. Here is a new version of the regression that includes a gradual time trend rather than a discrete one. 
+
+``` {r}
+stem2$year_centered <- stem2$year - min_year
+
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+dd_reg2$coefficients
+```
+
+This model still has the time trend, the difference between treatment and control, and the interaction term that specifies that the treatment group is being treated. We have just modified the time trend. 
+
+We interpret these coefficients separately, but only the coefficient on the interaction is about the actual causal effect from the STEM treatment. 
+
+The intercept tells us that the baseline score in this data set (the control regions) is `r round(dd_reg2$coefficients[1],0)`.
+
+The `r24` coefficient tells us that in the beginning, `r tgroup` had scores `r abs(round(dd_reg2$coefficients[3],0))` points `r ifelse(dd_reg2$coefficients[3]<0,'below','above')` the baseline of the other regions.
+
+The coefficient on the time variable `year` says that across regions, `score` was `r ifelse(dd_reg2$coefficients[3]<0,'decreasing','increasing')` by `r abs(round(dd_reg2$coefficients[4],0))` points annually.
+
+We have accounted for regions and time trends. Now we use the interaction to see if there is a difference in the regional differences before and after the time change. The coefficient on `r2_2015`, `r round(dd_reg2$coefficients[2],2)` tells us that students in `r tgroup` increased their scores by `r round(dd_reg2$coefficients[2],2)` points more than the other groups. The difference between groups changed by that much. *This would be the causal effect of the STEM program.* This is how many points the treatment group gains above and beyond the shared time trend. 
+
+Here is the regression graph. Better, eh?
+
+```{r, echo = FALSE}
+
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 3) +
+  labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light()+
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1)) + 
+  # control
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg2$coefficients[1],
+                     yend=dd_reg2$coefficients[1] + (cutoff-1-min_year)*dd_reg2$coefficients[4]), 
+                color = "blue") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + (cutoff-min_year)*dd_reg2$coefficients[4]),
+                     yend=dd_reg2$coefficients[1]+(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "blue") +
+  # treatment
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[3],
+                     yend=dd_reg2$coefficients[1]  + dd_reg2$coefficients[3] + (cutoff-1-min_year)*dd_reg2$coefficients[4]), 
+                color = "red") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[2]+ dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
+                     yend=dd_reg2$coefficients[1]+ dd_reg1$coefficients[2]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "red")
+```
+
+Ironically, both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data. 
 
 # with additional covariates
 
