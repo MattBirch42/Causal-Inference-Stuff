@@ -46,13 +46,23 @@ Provided Features:
 ### Create plot to show the issue
 Let's look at average scores in `r tgroup` vs other regions combined.
 
-Before `r cutoff`, `r tgroup` seems to lag behind the rest. Then in `r cutoff`, with the STEM program, scores in `r tgroup` jump to a higher level. With a good DiD, you can *see* the treatment in a graph like this. Although it may not be *this* obvious.
-
-However, we still have to talk about assumptions and estimation. 
+Before `r cutoff`, `r tgroup` seems to lag behind the rest. Then in `r cutoff`, with the STEM program, scores in `r tgroup` jump to a higher level. You can see that the difference between the groups is different on each side of the cutoff. There is a difference in the differences. With a good DiD, you can *see* the treatment in a graph like this, even before quantifying it. Although it may not be *this* obvious.
 
 ```{r, echo = FALSE}
 stem2$reg24 = ifelse(stem2$region %in% c(2,4),'Region 2 or 4','Other Regions')
 
+ggplot(stem2, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 1, alpha = 0.1) +
+  labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light() +
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1))
+```
+
+It may be instructive to just look at the average score for each year, instead.
+
+```{r, echo = FALSE}
 avg_scores <- aggregate(score ~ reg24 + year, data = stem2, FUN = mean)
 
 ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
@@ -65,8 +75,10 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
 
 ```
 
-### Assumption
-To successfully execute DiD and trust the results as a causal effect, you have to assume that the trends between treatment and control are parallel before and after the treatment. In this case, the trends do seem similar, before and after. 
+Either way works. However, eyeballing the graph is not enough. We still have to talk about the model assumptions, as well as estimation and inference. 
+
+### Main Assumption
+To successfully execute DiD and trust the results as a causal effect, you have to assume that the trends between treatment and control are parallel before and after the treatment. In this case, the trends (slopes) do seem similar, before and after. 
 
 ### Execution
 To perform the most basic version of a DiD, you use a regression with at least 3 variables. You must have:
@@ -75,7 +87,7 @@ To perform the most basic version of a DiD, you use a regression with at least 3
 * a treatment time variable that says whether treatment is occurring anywhere (doesn't actually have to be time)
 * an interaction term that marks whether a sample is in the treatment group AND ALSO currently being treated.
 
-You can add additional covariates, but these 3 are teh required components.
+You can add additional covariates, but these 3 are the required components.
 
 Treatment group:
 ``` {r}
@@ -191,11 +203,16 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                 color = "red")
 ```
 
-Ironically, both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data. 
+Ironically, both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data.
 
-# with additional covariates
+### Summarizing what we have so far:
 
-# stargazer for easy comparison
+The data displays parallel trends for treatment and control groups over time. We can see it. These parallel trends and the existence of a treatment for one group and not the other means we can use difference in differences. To do this, we implement a regression that controls for the initial gap between groups (treatment group dummy), accounts for the common time trend, and includes an interaction term that shows whether or not the treatment group is currently being treated. This last interaction term is the causal treatment effect, assuming we believe the parallel trends assumption. It shows how much the gap between treatment and control changes over the cutoff. It may be worth your while to see how I built that last graph to demonstrate to yourself that the coefficient on the interaction term is equal to the discrete change in the gaps. 
 
-# inference
-#inference
+Note that we can include more features in the model if we want to. In some cases, trends are not parallel until you control for other observable characteristics, so they become necessary.
+
+### What have we not covered yet?
+
+We have talked about the point estimates from the regressions. We have not discussed statistical significance or inference at all. Unfortunately, we cannot use the standard output from the linear regression model. The standard errors there assume every observation is independent and identically distributed, but that is not true in this panel data set. 
+
+### Inference
