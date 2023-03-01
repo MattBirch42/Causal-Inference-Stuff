@@ -205,10 +205,19 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                      xend=max_year,
                      y=dd_reg2$coefficients[1] + dd_reg2$coefficients[2]+ dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
                      yend=dd_reg2$coefficients[1]+ dd_reg1$coefficients[2]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
-                color = "red")
+                color = "red") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
+                     yend=dd_reg2$coefficients[1]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "red",
+                linetype = 'dotted')
 ```
 
-Both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data.
+**The Counterfactual:**
+The regression predictions are shown with the solid lines, and the counterfactual for the treatment group is shown with the red dotted line. What is a counterfactual? It is what we think would have happened without treatment, so we can guess the effect of treatment. In this case, it is the regression output but with the interaction term set to 0. Why does this work? Because the trends are parallel! The dotted line shows what would theoretically happen in `r tgroup` if they followed the trend but did not have STEM, where the solid red line shows what actually happened with STEM and the time trend. The gap between the solid red line and the dotted red line is the treatment effect. It shows how much the gap closed between red and blue.
+
+As a side note, both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data.
 
 ### Summarizing what we have so far:
 
