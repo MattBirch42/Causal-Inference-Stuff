@@ -6,17 +6,23 @@ output: html_document
 ---
 
 # Intro to Difference in Differences
-### This one will be the simple version. More exciting videos to come!
+## Part 1 (of 4): Vanilla DiD
 
-```{r, message = FALSE, warning = FALSE}
-rm(list = ls())
-library(ggplot2)
-library(stargazer)
-```
+Video link: 
 
-The best approach to estimating causal impacts is with a randomized trial, such as with an A/B test. In many cases, however, randomization is either unfeasible or unethical, or both. Sometimes the real world conducts natural experiments, in which some people receive treatment while others do not. With careful analysis, we can exploit these natural experiments to identify the causal relationship. 
+This section introduces Difference in Difference estimation in its simplest form. In future sections and videos, I intend to expand on this with synthetic controls (2), multiple treatment times (3), and higher order differences (4) such as difference in difference in differences. You don't even know what any of that means yet, but you will!
+
+The best approach to estimating causal impacts is with a randomized trials, such as with an A/B test. In many cases, however, randomization is either unfeasible or unethical, or both. Sometimes the real world conducts natural experiments, in which some people receive treatment while others do not. With careful analysis, we can exploit these natural experiments to identify the causal relationship. 
 
 One of the most common methods is Difference in Differences, also called diff-in-diff or DiD. DiD is an empirical technique to exploit natural experiments to identify causal relationships. The general idea is that the data is separated into treatment and control groups, without us running a real experiment. Under certain assumptions, we can compare the treatment and control groups (one difference) before and after treatment occurs (another difference). We can see how the difference between groups changes, and find our causal effect. 
+
+Necessary libraries:
+```{r, message = FALSE, warning = FALSE}
+                   # none needed for DiD point estimates
+library(ggplot2)   # for visualizations
+library(sandwich)  # to get fancy covariance matrix
+library(lmtest)    # to attach fancy covariance matrix to DiD estimates
+```
 
 So let's get some [fake] data!
 
@@ -44,9 +50,8 @@ Provided Features:
 
 
 ### Create plot to show the issue
-Let's look at average scores in `r tgroup` vs other regions combined.
 
-Before `r cutoff`, `r tgroup` seems to lag behind the rest. Then in `r cutoff`, with the STEM program, scores in `r tgroup` jump to a higher level. You can see that the difference between the groups is different on each side of the cutoff. There is a difference in the differences. With a good DiD, you can *see* the treatment in a graph like this, even before quantifying it. Although it may not be *this* obvious.
+Before `r cutoff`, `r tgroup` seems to lag behind the rest. Then in `r cutoff`, with the STEM program, scores in `r tgroup` jump to a higher level. You can see that the difference between the groups is different on each side of the cutoff. There is a difference in the differences. This is the image of a 'natural experiment' at work. The world, outside of a laboratory, created a treatment and control group and gave out treatment. We want to use that. With a good DiD, you can *see* the treatment in a graph like this, even before quantifying it. Although it will basically never be *this* obvious.
 
 ```{r, echo = FALSE}
 stem2$reg24 = ifelse(stem2$region %in% c(2,4),'Region 2 or 4','Other Regions')
@@ -75,7 +80,7 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
 
 ```
 
-Either way works. However, eyeballing the graph is not enough. We still have to talk about the model assumptions, as well as estimation and inference. 
+Either way works. However, eyeballing the graph is not enough. If we want to quantiy the impact of the STEM treatment on the treated regions, we still have to talk about the model assumptions, as well as estimation and inference. 
 
 ### Main Assumption
 To successfully execute DiD and trust the results as a causal effect, you have to assume that the trends between treatment and control are parallel before and after the treatment. In this case, the trends (slopes) do seem similar, before and after. 
@@ -110,7 +115,7 @@ dd_reg1 <- lm(score ~ r24_2015 + r24 + y2015plus, data = stem2)
 dd_reg1$coefficients
 ```
 
-That is the simplest version possible, but it is not the best model possible. We'll do a better one in a minute. The graph below shows what the regression predicts for treatment and control groups. Note that the gap between the treatment and control groups on the left is much wider, and the gap on the right is much narrower. There is a difference in the differences. The decrease in the gap is our treatment effect, and is the coefficient on the interaction term `r24_2015`, which is about a `r round(dd_reg1$coefficients[2],0)` point gain from the stem program.
+That is the simplest version possible, but it is not the best model possible. We'll do a better one in a minute. The graph below shows what the regression predicts for treatment and control groups. With no slope parameters, it just compares the averages on either side of the cutoff. Note that the gap between the treatment and control groups on the left is much wider, and the gap on the right is much narrower. There is a difference in the differences (see what I did there?). The decrease in the gap is our treatment effect, and is the coefficient on the interaction term `r24_2015`, which is about a `r round(dd_reg1$coefficients[2],0)` point gain from the stem program. That is how many points those students 'caught up' by. 
 
 ```{r, echo = FALSE}
 
@@ -166,7 +171,7 @@ The `r24` coefficient tells us that in the beginning, `r tgroup` had scores `r a
 
 The coefficient on the time variable `year` says that across regions, `score` was `r ifelse(dd_reg2$coefficients[3]<0,'decreasing','increasing')` by `r abs(round(dd_reg2$coefficients[4],0))` points annually.
 
-We have accounted for regions and time trends. Now we use the interaction to see if there is a difference in the regional differences before and after the time change. The coefficient on `r2_2015`, `r round(dd_reg2$coefficients[2],2)` tells us that students in `r tgroup` increased their scores by `r round(dd_reg2$coefficients[2],2)` points more than the other groups. The difference between groups changed by that much. *This would be the causal effect of the STEM program.* This is how many points the treatment group gains above and beyond the shared time trend. 
+We have accounted for regions and time trends. Now we use the interaction to see if there is a difference in the regional differences before and after the time change. The coefficient on `r2_2015`, `r round(dd_reg2$coefficients[2],2)` tells us that students in `r tgroup` increased their scores by `r round(dd_reg2$coefficients[2],2)` points more than the other groups. The difference between groups changed by that much. *This would be the causal effect of the STEM program.* This is how many points the treatment group gains above and beyond the shared time trend, and we attribute it to STEM (treatment). 
 
 Here is the regression graph. Better, eh?
 
@@ -203,7 +208,7 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                 color = "red")
 ```
 
-Ironically, both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data.
+Both models give very similar results. The treatment effect in the first model with the discrete time trend is `r round(dd_reg1$coefficients[2],2)`, while the treatment effect with the linear time trend is `r round(dd_reg2$coefficients[2],2)`. It won't always be so clean. This is fake data.
 
 ### Summarizing what we have so far:
 
@@ -213,6 +218,42 @@ Note that we can include more features in the model if we want to. In some cases
 
 ### What have we not covered yet?
 
-We have talked about the point estimates from the regressions. We have not discussed statistical significance or inference at all. Unfortunately, we cannot use the standard output from the linear regression model. The standard errors there assume every observation is independent and identically distributed, but that is not true in this panel data set. 
+We have talked about the point estimates from the regressions. We have not discussed statistical significance or inference at all. Unfortunately, we cannot use the standard output from the linear regression model. The standard errors there assume every observation is independent and identically distributed. This often untrue in panel data sets like this one where each region could have its on error distribution or where there is autocorrelation across time.
 
 ### Inference
+
+One common approach is to the "different error distribution by region" problem is to cluster your standard errors at the region-year level. This is where the `sandwich` package comes in. Clustering errors at the region-year level allows each region-year to have a different distribution of error terms. We have to start by creating a cluster variable, which in this case means it will take unique values for each region-year combo.
+
+``` {r, results = 'hide'}
+stem2$cluster_var <- paste(stem2$region, stem2$year_centered, sep = "-")
+```
+
+Then we generate the robust covariance matrix with clustered errors. If you do a lot of regression work with real world data, you should look into other options for the `vcovHC()` function. It is pretty awesome!
+
+```{r}
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+better_cov <- vcovHC(dd_reg2, type = "HC0", cluster = c("cluster_var"))
+```
+
+Recall the original regression:
+```{r}
+print(summary(dd_reg2))
+```
+
+Our updated regression with fancy standard errors:
+```{r}
+dd_reg2_clustered <-coeftest(dd_reg2, vcov = better_cov)
+print(dd_reg2_clustered)
+```
+
+The coefficients are the same, and always will be. But the standard errors and p-values will often be quite different from each other. You will notice that the main regression `dd_reg2` and the regression with clustered standard errors `dd_reg2_clustered` are not meaningfully different from each other.
+
+They will be similar if the standard errors are independent across clusters, not just within clusters. In this case, I generated the data with just a few lines of code and everything has the literally same error distribution, so it is no surprise that the regressions are approximately equivalent. In the real world, clustering your errors can make major changes to your standard errors and your p-values, so even though this fictional data set did not need it, I included the process for you. 
+
+**To clarify:** If this were a real data set, I would use the regression coefficients to estimate the treatment effect, but in order to draw inference from them with confidence intervals, I would want to use the clustered standard errors. If we had additional autocorrelation, this would be additionally more complex. 
+
+**Takeaway:** Difference in Differences relies a 'natural experiment,' wherein the real world separates a treatment and control group and doses treatment. If trends are parallel, we can use DiD to exploit the natural experiment to estimate the causal impact of treatment to the average person in the treatment group. This involves a regression with at least 3 specific variables, and it will likely also need special standard errors. 
+
+## Part 2 (of 4): Synthetic Controls
+## Part 3 (of 4): Multiple treatment cutoffs
+## Part 4 (of 4): Higher orders: DiD, DiDiD, DiDiDiD,...
