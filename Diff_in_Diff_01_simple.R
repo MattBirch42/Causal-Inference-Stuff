@@ -57,7 +57,7 @@ dd_reg1 <- lm(score ~ r24_2015 + r24 + y2015plus, data = stem2)
 dd_reg1$coefficients
 
 # This plot can be a bit confusing, especially with our poorly specified model
-# the solid lines represent predicted values from the model.
+
 ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
   geom_point(size = 3) +
   labs(x = "Year", y = "Average Score", color = "Region") +
@@ -88,10 +88,9 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                      yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[2]+dd_reg1$coefficients[3]+dd_reg1$coefficients[4]), 
                 color = "red")
 
-# add in a better time trend.
-stem2$year_centered <- stem2$year - min_year
+stem2$year_adjusted <- stem2$year - min_year
 
-dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_adjusted, data = stem2)
 dd_reg2$coefficients
 
 ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
@@ -123,7 +122,6 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                      y=dd_reg2$coefficients[1] + dd_reg2$coefficients[2]+ dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
                 yend=dd_reg2$coefficients[1]+ dd_reg1$coefficients[2]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
                 color = "red") + 
-  # counterfactual (for display only, not a required part of regression)
   geom_segment (aes (x=cutoff,
                      xend=max_year,
                      y=dd_reg2$coefficients[1] + dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
@@ -131,10 +129,9 @@ ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
                 color = "red",
                 linetype = 'dotted')
 
-# cluster the standard errors and compare
-stem2$cluster_var <- paste(stem2$region, stem2$year_centered, sep = "-")
+stem2$cluster_var <- paste(stem2$region, stem2$year_adjusted, sep = "-")
 
-dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_adjusted, data = stem2)
 better_cov <- vcovHC(dd_reg2, type = "HC0", cluster = c("cluster_var"))
 
 

@@ -361,6 +361,8 @@ display: none;
 <h1>Intro to Difference in Differences</h1>
 <div id="part-1-of-4-vanilla-did" class="section level2">
 <h2>Part 1 (of 4): Vanilla DiD</h2>
+<p>(I probably will be too lazy to do parts 2-4 in this. I am moving to
+a script, which is what I use for the videos anyway.)</p>
 <p>Video link:</p>
 <p>This section introduces Difference in Difference estimation in its
 simplest form. In future sections and videos, I intend to expand on this
@@ -620,13 +622,13 @@ use the regression coefficients to estimate the treatment effect, but in
 order to draw inference from them with confidence intervals, I would
 want to use the clustered standard errors. If we had additional
 autocorrelation, this would be additionally more complex.</p>
-<p><strong>Takeaway:</strong> Difference in Differences relies a
+<p><strong>Takeaway:</strong> Difference in Differences relies on a
 ‘natural experiment,’ wherein the real world separates a treatment and
-control group and doses treatment. If trends are parallel, we can use
-DiD to exploit the natural experiment to estimate the causal impact of
-treatment to the average person in the treatment group. This involves a
-regression with at least 3 specific variables, and it will likely also
-need special standard errors.</p>
+control group and doses treatment. If trends for treatment and control
+groups are parallel, we can use DiD to exploit the natural experiment to
+estimate the causal impact of treatment to the average person in the
+treatment group. This involves a regression with at least 3 specific
+variables, and it will likely also need special standard errors.</p>
 </div>
 </div>
 <div id="part-2-of-4-synthetic-controls" class="section level2">

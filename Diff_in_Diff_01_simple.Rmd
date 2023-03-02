@@ -7,6 +7,7 @@ output: html_document
 
 # Intro to Difference in Differences
 ## Part 1 (of 4): Vanilla DiD
+(I probably will be too lazy to do parts 2-4 in this. I am moving to a script, which is what I use for the videos anyway.)
 
 Video link: 
 
