@@ -1,57 +1,145 @@
+# Difference in differences
+# Author: Matt Birch
+# Date: 3/1/2023
+# This will largely be divided into 4 sections. In (1), I introduce simple diff-in-diff.
+# In (2), I do diff-in-diff with synthetic controls. In (3), I do diff-in-diff with
+# multiple cutoffs. In (4), I do higher order diff-in-diff. 
+
+###################################################################################################
+###################################################################################################
+###################### Section 1: Plain Vanilla DiD ###############################################
+###################################################################################################
+###################################################################################################
+
 rm(list = ls())
 
-library(ggplot2)
+library(ggplot2)   # for visualizations
+library(sandwich)  # to get fancy covariance matrix
+library(lmtest)    # to connect covaiance matrix with regression
 
-stem_data <- read.csv("https://raw.githubusercontent.com/MattBirch42/Causal-Inference-Stuff/main/Fake_DD_stemPolicy_scores.csv")
+stem_data <- read.csv("https://raw.githubusercontent.com/MattBirch42/Causal-Inference-Stuff/main/vanilla_did.csv")
 
-#######################################################################################
-###### DATA DICTIONARY ################################################################
-#######################################################################################
-# This is fake data about a STEM program that gives students extra STEM training in
-# Participating regions. We will measure how the program affects test scores.
-# year = Year
-# male = 1 if male, 0 otherwise
-# Region: These represent some fictional geographic region
-# Race: These categorize different unspecified races.
-# Stem: stem denotes extra STEM prep in grades 10-12.
-#       Stem program starts in 2013 in region 2 and in 2015 in region 5.
-#       No other region has stem
-# bday_m_cutoff: regions 1-4 have compulsory schooling laws (save this for RD later)
-# Education: parent’s years of formal schooling
-# Income: family income
-# Score: Assessment exam score (this is our dependent variable)
-# Varsity: did varsity sports
-# single_parent_hh: Lives with single parent
-stem_data$region = as.factor(stem_data$region)
+stem2 <- stem_data
+cutoff <- 2015
+min_year <- min(stem2$year)
+max_year <- max(stem2$year)
 
+#initial visualizations
+stem2$reg24 = ifelse(stem2$region %in% c(2,4),'Region 2 or 4','Other Regions')
 
-# Let's do the region 2 diff in diff only. 
-# We'll save region 5 for another video because it is treated at a different year.
-stem2 = stem_data[stem_data$region != 5,]
-
-
-# Create plot of avg scores in region 2 vs other regions combined.
-stem2$reg2 = ifelse(stem2$region == 2,'Region 2','Other Regions')
-
-avg_scores <- aggregate(score ~ reg2 + year, data = stem2, FUN = mean)
-
-ggplot(avg_scores, aes(x = year, y = score, color = reg2)) +
-  geom_line() +
+ggplot(stem2, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 1, alpha = 0.1) +
   labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light() +
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1))
+
+
+#   displaying only average values instead of all values
+avg_scores <- aggregate(score ~ reg24 + year, data = stem2, FUN = mean)
+
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 3) +
+  labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light() +
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1))
+
+# setting up your first DiD
+# the big 3
+stem2$r24<-ifelse(stem2$region %in% c(2,4),1,0)
+stem2$y2015plus<-ifelse(stem2$year>=cutoff,1,0)
+stem2$r24_2015<-stem2$r24*stem2$y2015plus
+
+dd_reg1 <- lm(score ~ r24_2015 + r24 + y2015plus, data = stem2)
+dd_reg1$coefficients
+
+# This plot can be a bit confusing, especially with our poorly specified model
+# the solid lines represent predicted values from the model.
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 3) +
+  labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
   theme_light()+
-  geom_vline(xintercept = 2012, linetype = "dashed")
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1)) + 
+  # control
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg1$coefficients[1],
+                     yend=dd_reg1$coefficients[1]), 
+                color = "blue") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[4],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[4]), 
+                color = "blue") +
+  # treatment
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[3],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[3]), 
+                color = "red") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg1$coefficients[1]+dd_reg1$coefficients[2]+dd_reg1$coefficients[3]+dd_reg1$coefficients[4],
+                     yend=dd_reg1$coefficients[1]+dd_reg1$coefficients[2]+dd_reg1$coefficients[3]+dd_reg1$coefficients[4]), 
+                color = "red")
+
+# add in a better time trend.
+stem2$year_centered <- stem2$year - min_year
+
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+dd_reg2$coefficients
+
+ggplot(avg_scores, aes(x = year, y = score, color = reg24)) +
+  geom_point(size = 3) +
+  labs(x = "Year", y = "Average Score", color = "Region") +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_light()+
+  geom_vline(xintercept = (cutoff-0.5), linetype = "dashed") +
+  scale_x_continuous(breaks = seq(min_year,max_year, by = 1)) + 
+  # control
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg2$coefficients[1],
+                     yend=dd_reg2$coefficients[1] + (cutoff-1-min_year)*dd_reg2$coefficients[4]), 
+                color = "blue") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + (cutoff-min_year)*dd_reg2$coefficients[4]),
+                yend=dd_reg2$coefficients[1]+(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "blue") +
+  # treatment
+  geom_segment (aes (x=min_year,
+                     xend=(cutoff-1),
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[3],
+                     yend=dd_reg2$coefficients[1]  + dd_reg2$coefficients[3] + (cutoff-1-min_year)*dd_reg2$coefficients[4]), 
+                color = "red") + 
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[2]+ dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
+                yend=dd_reg2$coefficients[1]+ dd_reg1$coefficients[2]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "red") + 
+  # counterfactual (for display only, not a required part of regression)
+  geom_segment (aes (x=cutoff,
+                     xend=max_year,
+                     y=dd_reg2$coefficients[1] + dd_reg2$coefficients[3]+ (cutoff-min_year)*dd_reg2$coefficients[4]),
+                yend=dd_reg2$coefficients[1]+ dd_reg2$coefficients[3] +(max_year - min_year)*dd_reg2$coefficients[4],
+                color = "red",
+                linetype = 'dotted')
+
+# cluster the standard errors and compare
+stem2$cluster_var <- paste(stem2$region, stem2$year_centered, sep = "-")
+
+dd_reg2 <- lm(score ~ r24_2015 + r24 + year_centered, data = stem2)
+better_cov <- vcovHC(dd_reg2, type = "HC0", cluster = c("cluster_var"))
 
 
+print(summary(dd_reg2))
 
-###################################################################
-# This is how we set up diff-in-diff. Requires at least 3 variables.
-#     Dummy variable for treatment group
-stem2$r2<-ifelse(stem2$region==2,1,0)
-#     Dummy variable for if treatment is happening
-stem2$y2013plus<-ifelse(stem2$year>=2013,1,0)
-#     Interaction: the treatment group is being treated
-stem2$r2_2013<-stem2$r2*stem2$y2013plus
-###################################################################
+dd_reg2_clustered <-coeftest(dd_reg2, vcov = better_cov)
+print(dd_reg2_clustered)
 
-
-dd_reg1 <- lm(score ~ r2_2013 + r2 + y2013plus, data = stem2)

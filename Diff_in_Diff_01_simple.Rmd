@@ -261,7 +261,7 @@ They will be similar if the standard errors are independent across clusters, not
 
 **To clarify:** If this were a real data set, I would use the regression coefficients to estimate the treatment effect, but in order to draw inference from them with confidence intervals, I would want to use the clustered standard errors. If we had additional autocorrelation, this would be additionally more complex. 
 
-**Takeaway:** Difference in Differences relies a 'natural experiment,' wherein the real world separates a treatment and control group and doses treatment. If trends are parallel, we can use DiD to exploit the natural experiment to estimate the causal impact of treatment to the average person in the treatment group. This involves a regression with at least 3 specific variables, and it will likely also need special standard errors. 
+**Takeaway:** Difference in Differences relies on a 'natural experiment,' wherein the real world separates a treatment and control group and doses treatment. If trends for treatment and control groups are parallel, we can use DiD to exploit the natural experiment to estimate the causal impact of treatment to the average person in the treatment group. This involves a regression with at least 3 specific variables, and it will likely also need special standard errors. 
 
 ## Part 2 (of 4): Synthetic Controls
 ## Part 3 (of 4): Multiple treatment cutoffs
